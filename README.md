@@ -51,18 +51,3 @@ Built executables are written to:
 - `vibc build/run` supports game entry files: `pong.vp`, `flappy.vp`, `chess.vp`.
 - Runtime is SDL2-backed and builds GUI executables (no console window).
 
-## Repo update helper
-
-To commit and push updates quickly:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "C:\Users\sould\vib-plus\update-repo.ps1" -Message "your commit message"
-```
-
-Optional:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "C:\Users\sould\vib-plus\update-repo.ps1" -Message "update docs" -GitName "xonist" -GitEmail "xonistrblx@gmail.com"
-powershell -ExecutionPolicy Bypass -File "C:\Users\sould\vib-plus\update-repo.ps1" -Message "update docs" -PullFirst
-powershell -ExecutionPolicy Bypass -File "C:\Users\sould\vib-plus\update-repo.ps1" -Message "wip local" -NoPush
-```
