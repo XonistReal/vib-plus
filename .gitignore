@@ -11,3 +11,7 @@ runtime/platform/sdl/build/
 Thumbs.db
 .vscode/
 
+# Local helper scripts (do not publish)
+publish-github.ps1
+update-repo.ps1
+
