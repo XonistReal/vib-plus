@@ -1,0 +1,177 @@
+// Flappy-style arcade — Vib+ example (requires std/game, std/math)
+import std/game
+import std/math
+
+type Pipe {
+    x     f64,
+    gap_y f64,
+    gap   f64,
+    done  bool,
+}
+
+type FlappyState {
+    bird_x    f64,
+    bird_y    f64,
+    bird_vy   f64,
+    gravity   f64,
+    flap_imp  f64,
+    pipes     [Pipe; 4],
+    score     i32,
+    game_over bool,
+    field_w   f64,
+    field_h   f64,
+    pipe_w    f64,
+    scroll    f64,
+    spacing   f64,
+}
+
+fn gap_size() -> f64 { 148.0 }
+
+fn rand_gap_y(h f64, seed f64) -> f64 {
+    let g = gap_size()
+    let margin = 100.0
+    let span = h - 2.0 * margin - g
+    let t = math.abs(seed % 317.0) / 317.0
+    margin + g / 2.0 + t * span
+}
+
+fn spawn_at(h f64, x f64, seed f64) -> Pipe {
+    Pipe { x: x, gap_y: rand_gap_y(h, seed), gap: gap_size(), done: false }
+}
+
+fn initial(w f64, h f64) -> FlappyState {
+    FlappyState {
+        bird_x:    w * 0.28,
+        bird_y:    h * 0.45,
+        bird_vy:   0.0,
+        gravity:   1850.0,
+        flap_imp:  -430.0,
+        pipes:     [
+            spawn_at(h, w * 0.65, 11.0),
+            spawn_at(h, w * 0.65 + 260.0, 29.0),
+            spawn_at(h, w * 0.65 + 520.0, 47.0),
+            spawn_at(h, w * 0.65 + 780.0, 61.0),
+        ],
+        score:     0,
+        game_over: false,
+        field_w:   w,
+        field_h:   h,
+        pipe_w:    62.0,
+        scroll:    220.0,
+        spacing:   260.0,
+    }
+}
+
+fn circle_hits_rect(cx f64, cy f64, r f64, rx f64, ry f64, rw f64, rh f64) -> bool {
+    let nx = math.clamp(cx, rx, rx + rw)
+    let ny = math.clamp(cy, ry, ry + rh)
+    let dx = cx - nx
+    let dy = cy - ny
+    (dx * dx + dy * dy) <= r * r
+}
+
+fn tick_pipe(mut s FlappyState, i i32, dt f64) -> () {
+    let mut p = s.pipes[i]
+    p.x = p.x - s.scroll * dt
+
+    let r = 14.0
+    let top_h = p.gap_y - p.gap / 2.0
+    let bot_y = p.gap_y + p.gap / 2.0
+    let bot_h = s.field_h - bot_y
+
+    if circle_hits_rect(s.bird_x, s.bird_y, r, p.x, 0.0, s.pipe_w, top_h) {
+        s.game_over = true
+    }
+    if circle_hits_rect(s.bird_x, s.bird_y, r, p.x, bot_y, s.pipe_w, bot_h) {
+        s.game_over = true
+    }
+
+    if !p.done && p.x + s.pipe_w < s.bird_x {
+        p.done = true
+        s.score = s.score + 1
+    }
+
+    if p.x + s.pipe_w < -30.0 {
+        let max_x = s.field_w + 40.0
+        let mut j = 0
+        let mut m = s.pipes[0].x
+        while j < 4 {
+            if s.pipes[j].x > m { m = s.pipes[j].x }
+            j = j + 1
+        }
+        p = spawn_at(s.field_h, m + s.spacing, s.field_w + s.score as f64)
+    }
+
+    s.pipes[i] = p
+}
+
+fn tick(mut s FlappyState, frame game.Frame) -> () {
+    if s.game_over {
+        if frame.key_pressed(game.Key.Space) || frame.key_pressed(game.Key.Enter) {
+            s = initial(s.field_w, s.field_h)
+        }
+        return
+    }
+
+    let dt = frame.dt
+    if frame.key_pressed(game.Key.Space) || frame.key_pressed(game.Key.W) {
+        s.bird_vy = s.flap_imp
+    }
+
+    s.bird_vy = s.bird_vy + s.gravity * dt
+    s.bird_y = s.bird_y + s.bird_vy * dt
+
+    let r = 14.0
+    if s.bird_y - r <= 0.0 || s.bird_y + r >= s.field_h {
+        s.game_over = true
+    }
+
+    let mut i = 0
+    while i < 4 {
+        tick_pipe(mut s, i, dt)
+        i = i + 1
+    }
+}
+
+fn draw(s FlappyState, c game.Canvas) -> () {
+    let sky = game.Color::rgb(52, 152, 219)
+    let grass = game.Color::rgb(39, 174, 96)
+    let pipe_c = game.Color::rgb(34, 139, 34)
+    let bird_c = game.Color::rgb(241, 196, 15)
+    let txt = game.Color::rgb(236, 240, 241)
+
+    c.clear(sky)
+    c.fill_rect(0.0, s.field_h - 36.0, s.field_w, 36.0, grass)
+
+    let mut i = 0
+    while i < 4 {
+        let p = s.pipes[i]
+        let top_h = p.gap_y - p.gap / 2.0
+        let bot_y = p.gap_y + p.gap / 2.0
+        let bot_h = s.field_h - bot_y
+        c.fill_rect(p.x, 0.0, s.pipe_w, top_h, pipe_c)
+        c.fill_rect(p.x, bot_y, s.pipe_w, bot_h, pipe_c)
+        i = i + 1
+    }
+
+    c.fill_circle(s.bird_x, s.bird_y, 14.0, bird_c)
+    c.text(24.0, 24.0, "Score: " + s.score.to_str(), 28.0, txt)
+
+    if s.game_over {
+        c.text(s.field_w / 2.0 - 140.0, s.field_h / 2.0 - 20.0, "Game Over — Space", 24.0, txt)
+    } else {
+        c.text(24.0, 56.0, "Space / W flap", 16.0, txt)
+    }
+}
+
+fn main() -> () {
+    let w = 520.0
+    let h = 680.0
+    let win = game.window("Vib+ Flappy", 520, 680)
+    mut state = initial(w, h)
+
+    game.run(win, fn frame {
+        tick(mut state, frame)
+        draw(state, frame.canvas)
+    })
+}

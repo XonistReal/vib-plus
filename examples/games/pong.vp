@@ -1,0 +1,157 @@
+// Pong — Vib+ example (requires std/game, std/math)
+import std/game
+import std/math
+
+type PongState {
+    ball_x     f64,
+    ball_y     f64,
+    ball_vx    f64,
+    ball_vy    f64,
+    paddle_l   f64,
+    paddle_r   f64,
+    score_l    i32,
+    score_r    i32,
+    paddle_h   f64,
+    paddle_w   f64,
+    ball_r     f64,
+    field_w    f64,
+    field_h    f64,
+    paddle_spd f64,
+}
+
+fn initial_state(w f64, h f64) -> PongState {
+    PongState {
+        ball_x:     w / 2.0,
+        ball_y:     h / 2.0,
+        ball_vx:    320.0,
+        ball_vy:    180.0,
+        paddle_l:   h / 2.0 - 50.0,
+        paddle_r:   h / 2.0 - 50.0,
+        score_l:    0,
+        score_r:    0,
+        paddle_h:   100.0,
+        paddle_w:   14.0,
+        ball_r:     8.0,
+        field_w:    w,
+        field_h:    h,
+        paddle_spd: 420.0,
+    }
+}
+
+fn reset_ball(mut s PongState) -> () {
+    s.ball_x = s.field_w / 2.0
+    s.ball_y = s.field_h / 2.0
+    let sign = if (s.ball_vx >= 0.0) { 1.0 } else { -1.0 }
+    s.ball_vx = sign * 320.0
+    s.ball_vy = if (s.ball_vy >= 0.0) { 180.0 } else { -180.0 }
+}
+
+fn tick(mut s PongState, frame game.Frame) -> () {
+    let dt = frame.dt
+    let margin = 24.0
+    let lx = margin
+    let rx = s.field_w - margin - s.paddle_w
+
+    // Left paddle: W / S
+    if frame.key_held(game.Key.W) {
+        s.paddle_l = s.paddle_l - s.paddle_spd * dt
+    }
+    if frame.key_held(game.Key.S) {
+        s.paddle_l = s.paddle_l + s.paddle_spd * dt
+    }
+    // Right paddle: Up / Down
+    if frame.key_held(game.Key.Up) {
+        s.paddle_r = s.paddle_r - s.paddle_spd * dt
+    }
+    if frame.key_held(game.Key.Down) {
+        s.paddle_r = s.paddle_r + s.paddle_spd * dt
+    }
+
+    let half = s.paddle_h / 2.0
+    s.paddle_l = math.clamp(s.paddle_l, half, s.field_h - half)
+    s.paddle_r = math.clamp(s.paddle_r, half, s.field_h - half)
+
+    // Ball motion
+    s.ball_x = s.ball_x + s.ball_vx * dt
+    s.ball_y = s.ball_y + s.ball_vy * dt
+
+    // Top / bottom walls
+    if s.ball_y - s.ball_r <= 0.0 {
+        s.ball_y = s.ball_r
+        s.ball_vy = math.abs(s.ball_vy)
+    }
+    if s.ball_y + s.ball_r >= s.field_h {
+        s.ball_y = s.field_h - s.ball_r
+        s.ball_vy = -math.abs(s.ball_vy)
+    }
+
+    // Paddle collisions (axis-aligned approximation)
+    if s.ball_x - s.ball_r <= lx + s.paddle_w &&
+       s.ball_x - s.ball_r >= lx &&
+       s.ball_y >= s.paddle_l - half - s.ball_r &&
+       s.ball_y <= s.paddle_l + half + s.ball_r &&
+       s.ball_vx < 0.0
+    {
+        s.ball_x = lx + s.paddle_w + s.ball_r
+        s.ball_vx = math.abs(s.ball_vx) * 1.05
+        let off = (s.ball_y - s.paddle_l) / half
+        s.ball_vy = s.ball_vy + off * 120.0
+    }
+
+    if s.ball_x + s.ball_r >= rx &&
+       s.ball_x + s.ball_r <= rx + s.paddle_w + s.ball_r &&
+       s.ball_y >= s.paddle_r - half - s.ball_r &&
+       s.ball_y <= s.paddle_r + half + s.ball_r &&
+       s.ball_vx > 0.0
+    {
+        s.ball_x = rx - s.ball_r
+        s.ball_vx = -math.abs(s.ball_vx) * 1.05
+        let off = (s.ball_y - s.paddle_r) / half
+        s.ball_vy = s.ball_vy + off * 120.0
+    }
+
+    // Score if ball leaves field
+    if s.ball_x < -40.0 {
+        s.score_r = s.score_r + 1
+        reset_ball(mut s)
+    }
+    if s.ball_x > s.field_w + 40.0 {
+        s.score_l = s.score_l + 1
+        reset_ball(mut s)
+    }
+
+    if frame.key_pressed(game.Key.Space) {
+        reset_ball(mut s)
+    }
+}
+
+fn draw(s PongState, c game.Canvas) -> () {
+    let bg = game.Color::rgb(12, 18, 32)
+    let fg = game.Color::rgb(220, 230, 245)
+    let accent = game.Color::rgb(90, 200, 255)
+    c.clear(bg)
+
+    let margin = 24.0
+    let lx = margin
+    let rx = s.field_w - margin - s.paddle_w
+    let half = s.paddle_h / 2.0
+
+    c.fill_rect(lx, s.paddle_l - half, s.paddle_w, s.paddle_h, accent)
+    c.fill_rect(rx, s.paddle_r - half, s.paddle_w, s.paddle_h, accent)
+    c.fill_circle(s.ball_x, s.ball_y, s.ball_r, fg)
+
+    c.text(32.0, 24.0, s.score_l.to_str() + "  —  " + s.score_r.to_str(), 28.0, fg)
+    c.text(32.0, s.field_h - 48.0, "W/S vs Up/Down   Space reset", 16.0, fg)
+}
+
+fn main() -> () {
+    let w = 900.0
+    let h = 560.0
+    let win = game.window("Vib+ Pong", 900, 560)
+    mut state = initial_state(w, h)
+
+    game.run(win, fn frame {
+        tick(mut state, frame)
+        draw(state, frame.canvas)
+    })
+}

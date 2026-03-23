@@ -1,0 +1,312 @@
+// Chess (simplified rules) — Vib+ example (requires std/game)
+// No castling, en passant, or promotion choice (pawn → queen).
+import std/game
+import std/math
+
+enum Side { White, Black }
+
+enum Kind { P, R, N, B, Q, K }
+
+type Cell {
+    Empty,
+    Occupied { side Side, kind Kind },
+}
+
+type ChessState {
+    board   [Cell; 64],
+    turn    Side,
+    sel     i32,       // -1 none, else 0..63
+    msg     str,
+    square  f64,
+    field   f64,
+}
+
+fn other(s Side) -> Side {
+    match s {
+        Side.White => Side.Black,
+        Side.Black => Side.White,
+    }
+}
+
+fn idx(row i32, col i32) -> i32 {
+    row * 8 + col
+}
+
+fn row_of(i i32) -> i32 { i / 8 }
+fn col_of(i i32) -> i32 { i % 8 }
+
+fn abs_i(x i32) -> i32 {
+    if x < 0 { -x } else { x }
+}
+
+fn sign_i(x i32) -> i32 {
+    if x < 0 { -1 } else if x > 0 { 1 } else { 0 }
+}
+
+fn initial_board() -> [Cell; 64] {
+    mut b = [Cell.Empty; 64]
+    // Pawns
+    let mut c = 0
+    while c < 8 {
+        b[idx(1, c)] = Cell.Occupied { side: Side.Black, kind: Kind.P }
+        b[idx(6, c)] = Cell.Occupied { side: Side.White, kind: Kind.P }
+        c = c + 1
+    }
+    // Back ranks
+    let back = [Kind.R, Kind.N, Kind.B, Kind.Q, Kind.K, Kind.B, Kind.N, Kind.R]
+    let mut c2 = 0
+    while c2 < 8 {
+        b[idx(0, c2)] = Cell.Occupied { side: Side.Black, kind: back[c2] }
+        b[idx(7, c2)] = Cell.Occupied { side: Side.White, kind: back[c2] }
+        c2 = c2 + 1
+    }
+    b
+}
+
+fn is_path_clear(b [Cell; 64], fr i32, to i32) -> bool {
+    let r1 = row_of(fr)
+    let c1 = col_of(fr)
+    let r2 = row_of(to)
+    let c2 = col_of(to)
+    let dr = sign_i(r2 - r1)
+    let dc = sign_i(c2 - c1)
+    let mut r = r1 + dr
+    let mut c = c1 + dc
+    while r != r2 || c != c2 {
+        match b[idx(r, c)] {
+            Cell.Empty => {}
+            Cell.Occupied { side _, kind _ } => return false,
+        }
+        r = r + dr
+        c = c + dc
+    }
+    true
+}
+
+fn can_move(b [Cell; 64], fr i32, to i32, turn Side) -> bool {
+    let piece = b[fr]
+    let dst = b[to]
+    match piece {
+        Cell.Empty => return false,
+        Cell.Occupied { side pside, kind pk } => {
+            if pside != turn {
+                return false
+            }
+            match dst {
+                Cell.Occupied { side s, kind _ } => {
+                    if s == turn {
+                        return false
+                    }
+                }
+                Cell.Empty => {}
+            }
+
+            let r1 = row_of(fr)
+            let c1 = col_of(fr)
+            let r2 = row_of(to)
+            let c2 = col_of(to)
+            let dr = r2 - r1
+            let dc = c2 - c1
+
+            match pk {
+                Kind.P => {
+                    let dir = if turn == Side.White { -1 } else { 1 }
+                    let start_row = if turn == Side.White { 6 } else { 1 }
+                    if dc == 0 && dr == dir {
+                        match dst {
+                            Cell.Empty => return true,
+                            Cell.Occupied { side _, kind _ } => return false,
+                        }
+                    }
+                    if dc == 0 && dr == 2 * dir && r1 == start_row {
+                        match dst {
+                            Cell.Empty => {
+                                let mid = idx(r1 + dir, c1)
+                                match b[mid] {
+                                    Cell.Empty => return true,
+                                    Cell.Occupied { side _, kind _ } => return false,
+                                }
+                            }
+                            Cell.Occupied { side _, kind _ } => return false,
+                        }
+                    }
+                    if abs_i(dc) == 1 && dr == dir {
+                        match dst {
+                            Cell.Occupied { side _, kind _ } => return true,
+                            Cell.Empty => return false,
+                        }
+                    }
+                    false
+                }
+                Kind.N => {
+                    let ad = abs_i(dr)
+                    let ac = abs_i(dc)
+                    (ad == 2 && ac == 1) || (ad == 1 && ac == 2)
+                }
+                Kind.R => {
+                    if dr != 0 && dc != 0 {
+                        return false
+                    }
+                    is_path_clear(b, fr, to)
+                }
+                Kind.B => {
+                    if abs_i(dr) != abs_i(dc) || dr == 0 {
+                        return false
+                    }
+                    is_path_clear(b, fr, to)
+                }
+                Kind.Q => {
+                    let straight = dr == 0 || dc == 0
+                    let diag = abs_i(dr) == abs_i(dc)
+                    if !straight && !diag {
+                        return false
+                    }
+                    is_path_clear(b, fr, to)
+                }
+                Kind.K => {
+                    abs_i(dr) <= 1 && abs_i(dc) <= 1 && (dr != 0 || dc != 0)
+                }
+            }
+        }
+    }
+}
+
+fn screen_to_square(mx f64, my f64, s ChessState) -> i32 {
+    if mx < 0.0 || my < 0.0 || mx >= s.field || my >= s.field {
+        return -1
+    }
+    let col = (mx / s.square) as i32
+    let row = (my / s.square) as i32
+    if row < 0 || row > 7 || col < 0 || col > 7 {
+        return -1
+    }
+    // Flip board so white at bottom visually: row 7 at top of screen
+    let br = 7 - row
+    idx(br, col)
+}
+
+fn label(k Kind) -> str {
+    match k {
+        Kind.P => "P",
+        Kind.R => "R",
+        Kind.N => "N",
+        Kind.B => "B",
+        Kind.Q => "Q",
+        Kind.K => "K",
+    }
+}
+
+fn draw(s ChessState, c game.Canvas) -> () {
+    let light = game.Color::rgb(240, 217, 181)
+    let dark = game.Color::rgb(181, 136, 99)
+    let hi = game.Color::rgba(120, 200, 255, 120)
+    let text_c = game.Color::rgb(30, 30, 30)
+
+    c.clear(game.Color::rgb(28, 32, 40))
+
+    let mut r = 0
+    while r < 8 {
+        let mut col = 0
+        while col < 8 {
+            let i = idx(r, col)
+            let x = col as f64 * s.square
+            let y = (7 - r) as f64 * s.square
+            let tile = if (r + col) % 2 == 0 { light } else { dark }
+            c.fill_rect(x, y, s.square, s.square, tile)
+            if i == s.sel {
+                c.fill_rect(x, y, s.square, s.square, hi)
+            }
+            match s.board[i] {
+                Cell.Empty => {}
+                Cell.Occupied { side side, kind k } => {
+                    let sym = label(k)
+                    let prefix = if side == Side.White { "W" } else { "B" }
+                    c.text(x + 8.0, y + 10.0, prefix + sym, 22.0, text_c)
+                }
+            }
+            col = col + 1
+        }
+        r = r + 1
+    }
+
+    c.text(12.0, s.field + 8.0, s.msg, 16.0, game.Color::rgb(200, 210, 220))
+}
+
+fn try_click(mut s ChessState, frame game.Frame) -> () {
+    if !frame.mouse.left_pressed {
+        return
+    }
+    let sq = screen_to_square(frame.mouse.x, frame.mouse.y, s)
+    if sq < 0 {
+        return
+    }
+    // Click own piece: select or re-select
+    match s.board[sq] {
+        Cell.Occupied { side side, kind _ } => {
+            if side == s.turn {
+                s.sel = sq
+                s.msg = "Selected — click destination"
+                return
+            }
+        }
+        Cell.Empty => {}
+    }
+
+    if s.sel >= 0 {
+        if can_move(s.board, s.sel, sq, s.turn) {
+            mut b = s.board
+            let moving = b[s.sel]
+            b[s.sel] = Cell.Empty
+            b[sq] = moving
+            // Auto-promote pawn to queen
+            match b[sq] {
+                Cell.Occupied { side ps, kind k } => {
+                    if k == Kind.P {
+                        let pr = row_of(sq)
+                        if (ps == Side.White && pr == 0) || (ps == Side.Black && pr == 7) {
+                            b[sq] = Cell.Occupied { side: ps, kind: Kind.Q }
+                        }
+                    }
+                }
+                Cell.Empty => {}
+            }
+            s.board = b
+            s.turn = other(s.turn)
+            s.sel = -1
+            s.msg = "Turn: " + (if s.turn == Side.White { "White" } else { "Black" })
+        } else {
+            // Reselect
+            match s.board[sq] {
+                Cell.Occupied { side side, kind _ } => {
+                    if side == s.turn {
+                        s.sel = sq
+                        s.msg = "Selected — click destination"
+                    } else {
+                        s.msg = "Illegal move"
+                    }
+                }
+                Cell.Empty => {
+                    s.msg = "Illegal move"
+                }
+            }
+        }
+    }
+}
+
+fn main() -> () {
+    let field = 560.0
+    let win = game.window("Vib+ Chess", 580, 620)
+    mut state = ChessState {
+        board:  initial_board(),
+        turn:   Side.White,
+        sel:    -1,
+        msg:    "White to move — click piece then square",
+        square: field / 8.0,
+        field:  field,
+    }
+
+    game.run(win, fn frame {
+        try_click(mut state, frame)
+        draw(state, frame.canvas)
+    })
+}

@@ -1,0 +1,7 @@
+// Vib+ stdlib draft: console module
+module std/console
+
+fn write(text str) -> ()
+fn writeln(text str) -> ()
+fn read_line() -> Result[str, IoErr]
+

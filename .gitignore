@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# Build outputs
+runtime/platform/sdl/build-win/
+runtime/platform/sdl/build/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+

@@ -1,0 +1,31 @@
+// Vib+ stdlib draft: game module
+module std/game
+
+type Window
+type Canvas
+type Frame
+type Mouse
+type Color
+
+enum Key {
+    W, A, S, D,
+    Up, Down, Left, Right,
+    Space, Enter, Escape,
+}
+
+fn window(title str, width u32, height u32) -> Window
+fn run(win Window, each_frame fn(Frame) -> ()) -> ()
+
+fn Frame::key_held(self, k Key) -> bool
+fn Frame::key_pressed(self, k Key) -> bool
+
+fn Canvas::clear(self, c Color) -> ()
+fn Canvas::fill_rect(self, x f64, y f64, w f64, h f64, c Color) -> ()
+fn Canvas::stroke_rect(self, x f64, y f64, w f64, h f64, c Color, thickness f64) -> ()
+fn Canvas::fill_circle(self, cx f64, cy f64, r f64, c Color) -> ()
+fn Canvas::line(self, x1 f64, y1 f64, x2 f64, y2 f64, c Color, thickness f64) -> ()
+fn Canvas::text(self, x f64, y f64, s str, size f64, c Color) -> ()
+
+fn Color::rgb(r u8, g u8, b u8) -> Color
+fn Color::rgba(r u8, g u8, b u8, a u8) -> Color
+
