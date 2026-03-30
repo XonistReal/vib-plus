@@ -37,13 +37,13 @@ See `docs/AI_DISCLOSURE.md` for details.
 From PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "C:\Users\sould\vib-plus\compiler\vibc.ps1" build "C:\Users\sould\vib-plus\examples\games\pong.vp" --sdl-root "C:\Users\sould\SDL2\SDL2-2.32.10" --compiler cl
-powershell -ExecutionPolicy Bypass -File "C:\Users\sould\vib-plus\compiler\vibc.ps1" run "C:\Users\sould\vib-plus\examples\games\flappy.vp" --sdl-root "C:\Users\sould\SDL2\SDL2-2.32.10" --compiler cl
+powershell -ExecutionPolicy Bypass -File "C:\Users\"you"\vib-plus\compiler\vibc.ps1" build "C:\Users\"you"\vib-plus\examples\games\pong.vp" --sdl-root "C:\Users\"you"\SDL2\SDL2-2.32.10" --compiler cl
+powershell -ExecutionPolicy Bypass -File "C:\Users\"you"\vib-plus\compiler\vibc.ps1" run "C:\Users\"you"\vib-plus\examples\games\flappy.vp" --sdl-root "C:\Users\"you"\SDL2\SDL2-2.32.10" --compiler cl
 ```
 
 Built executables are written to:
 
-`C:\Users\sould\vib-plus\runtime\platform\sdl\build-win`
+`C:\Users\"you"\vib-plus\runtime\platform\sdl\build-win`
 
 ## Current project status
 
